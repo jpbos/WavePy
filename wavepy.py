@@ -6,10 +6,12 @@
 # Released under BSD attribution license please reference 
 # Maintained at www.github.com/jpbos/WavePy
 # Developed under Python 2.7
+#Modified version using acuda accelerate
 
 import numpy as np
 from math import pi, gamma, cos, sin
 import matplotlib.pyplot as plt
+import cv2
 
 class wavepy:
     def __init__(self,simOption=0,N=256,SideLen=1.0,NumScr=10,DRx=0.1,dx=5e-3,
@@ -266,8 +268,9 @@ class wavepy:
         cn = cn * np.sqrt(PSD_phi)*del_f;
 
         # Inverse FFT
-        phz_temp  = np.fft.ifft2(np.fft.fftshift(cn))*((self.N)**2);
-
+        phz_temp_stack  = np.fft.fftshift(cn)
+        phz_temp_shift = cv2.idft(np.array(np.dstack([phz_temp_stack.real,phz_temp_stack.imag])))*((self.N)**2)
+        phz_temp = phz_temp_shift[:,:,0] + phz_temp_shift[:,:,1]
         # Phase screens 
         phz1 = np.real(phz_temp);
 
@@ -360,7 +363,7 @@ class wavepy:
         for pcount in range(1,len(self.PropLocs)-2):
                                 
             
-            UinSpec = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(Uin)))  
+            UinSpec = np.fft.fftshift(cv2.dft(np.fft.fftshift(Uin)))  
 
             #Set spatial frequencies at propagation plane
             deltaf = 1/(self.N * self.PropSampling[pcount])
@@ -373,7 +376,7 @@ class wavepy:
             QuadPhaseFac = np.exp( -1j * np.pi * self.wvl * self.dzProps[pcount] \
             * SamplingRatio[pcount] * fsq)
             
-            Uin = np.fft.ifftshift(np.fft.ifft2( \
+            Uin = np.fft.ifftshift(cv2.idft( \
             np.fft.ifftshift(UinSpec * QuadPhaseFac)) ) 
             
             Uin = Uin * sg
@@ -404,7 +407,7 @@ class wavepy:
         for pcount in range(1,len(self.PropLocs)-2):
                                 
             
-            UinSpec = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(Uin)))  
+            UinSpec = np.fft.fftshift(cv2.dft(np.fft.fftshift(Uin)))  
 
             #Set spatial frequencies at propagation plane
             deltaf = 1/(self.N * self.PropSampling[pcount])
@@ -417,7 +420,7 @@ class wavepy:
             QuadPhaseFac = np.exp( -1j * np.pi * self.wvl * self.dzProps[pcount] \
             * SamplingRatio[pcount] * fsq)
             
-            Uin = np.fft.ifftshift(np.fft.ifft2( \
+            Uin = np.fft.ifftshift(cv2.idft( \
             np.fft.ifftshift(UinSpec * QuadPhaseFac)) ) 
             
             Uin = Uin * sg * np.exp(1j * PhaseScreenStack[:,:,pcount-1])
@@ -484,16 +487,17 @@ class wavepy:
         N_size = np.shape(ph) #Make sure to reference 0th element later
         ph = ph*mask
         
-        P = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(ph)))*(delta**2)
-        S = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(ph**2)))*(delta**2)
-        W = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(mask)))*(delta**2)
+        
+        P = np.fft.fftshift(cv2.dft(np.fft.fftshift(ph)))*(delta**2)
+        S = np.fft.fftshift(cv2.dft(np.fft.fftshift(ph**2)))*(delta**2)
+        W = np.fft.fftshift(cv2.dft(np.fft.fftshift(mask)))*(delta**2)
         delta_f = 1/(N_size[0]*delta)
         
-        fft_size_a = np.shape(W*np.conjugate(W))        
-        w2 = np.fft.ifftshift(np.fft.ifft2(np.fft.ifftshift(W*np.conjugate(W))))*((fft_size_a[0]*delta_f)**2)
+        fft_size_a = np.shape(W*np.conjugate(W))
+        w2 = np.fft.ifftshift(cv2.idft(np.fft.ifftshift(W*np.conjugate(W))))*((fft_size_a[0]*delta_f)**2)
         
         fft_size_b = np.shape(np.real(S*np.conjugate(W))-np.abs(P)**2)
-        D = 2 * ((np.fft.ifftshift(np.fft.ifft2(np.fft.ifftshift(np.real(S*np.conjugate(W))-np.abs(P)**2)))) * ((fft_size_b[0]*delta_f)**2) )
+        D = 2 * ((np.fft.ifftshift(cv2.idft(np.fft.ifftshift(np.real(S*np.conjugate(W))-np.abs(P)**2)))) * ((fft_size_b[0]*delta_f)**2) )
         
         D = D/w2
         
@@ -516,7 +520,7 @@ class wavepy:
             phz_FT_temp = self.PhaseScreen()
             #using phase screens from ^ so that time isn't wasted generating
             #screens for the SubHarmonic case
-            phz_SH_temp = self.SubHarmonicComp(1) + phz_FT_temp            
+            phz_SH_temp = self.SubHarmonicComp(1) + phz_FT_temp           
             
             phz_FT_temp = self.StructFunc(phz_FT_temp)
             phz_SH_temp = self.StructFunc(phz_SH_temp)
@@ -556,6 +560,7 @@ class wavepy:
         plt.plot(cent_dist,phz_SH_disp)
         plt.xlim((0,10))
         plt.ylim((0,400))
+
 
 
 
